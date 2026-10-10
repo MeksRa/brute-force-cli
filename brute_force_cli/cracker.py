@@ -14,18 +14,15 @@ class PasswordCracker:
         self.base_dir = base_dir
         self.config = self._load_config(config_path)
 
-        # self.target_type: str = str(self.config.get("target_type", "string")).lower()
         self.target_value: str = str(self.config.get("target_value", "")).strip()
         self.mode = str(self.config.get("mode", "hybrid")).lower()
         self.mangling_level = int(self.config.get("mangling_level", 0))
 
-        # ===
         raw_target_type = str(self.config.get("target_type", "")).strip().lower()
         if not raw_target_type or raw_target_type == "auto":
             self.target_type = self._autodetect_target_type(self.target_value)
         else:
             self.target_type = raw_target_type
-        # ===
 
         wordlist_name = str(self.config.get("wordlist_name", "100k_passwords.txt"))
         self.wordlist_path = self.base_dir / "data" / wordlist_name
@@ -34,7 +31,6 @@ class PasswordCracker:
         if self.mode in ("dictionary_only", "hybrid"):
             self._load_wordlist()
 
-    # ==
     def _autodetect_target_type(self, target_value: str) -> str:
         """Automatically determines the target type based on the file extension."""
         if not target_value:
@@ -231,10 +227,18 @@ class PasswordCracker:
             return
 
         if self.target_type != "string":
-            target_file_path = self.base_dir / self.target_value
-            if not target_file_path.exists():
-                print(f"[-] Target file not found: {target_file_path}")
+            target_path = Path(self.target_value)
+
+            if not target_path.exists():
+                fallback_path = self.base_dir / "data" / self.target_value
+                if fallback_path.exists():
+                    target_path = fallback_path
+
+            if not target_path.exists():
+                print(f"[-] Target file not found: {self.target_value}")
                 return
+
+            self.target_value = str(target_path.resolve())
 
         valid_modes = ("dictionary_only", "bruteforce_only", "hybrid")
         if self.mode not in valid_modes:
