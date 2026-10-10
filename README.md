@@ -84,6 +84,20 @@ The tool supports 3 different attack modes (`-m`, `--mode`):
 
 ---
 
+## Password Mangling Levels (`--mangling`)
+
+Mangling rules mutate words from your wordlist to generate smart variations (useful for dictionary and hybrid attacks). Available levels:
+
+- **Level 0 (Default):** Disabled. Words from the dictionary are used as-is.
+- **Basic case variations** (as-is, LOWERCASE, UPPERCASE, Capitalized).
+- **Level 1:** Adds standard common suffixes and prefixes (`"123"`, `"1"`, `"0"`, `"!"`, `"@"`, `"2026"`, `"2025"`).
+- **Level 2:** Reverses words (`word[::-1]`) and appends extended tails/suffixes (e.g., `"12345"`, `"777"`, `"007"`, `"_!"`, `"pass"`).
+- **Level 3 (Hashcat-style lite):** Structural rules including case swapping (`swapcase()`), word doubling (`adminadmin`), left/right character truncation, and cyclic shifts.
+- **Level 4:** Leetspeak transformations (`1337-speak`), replacing standard letters with visually similar numbers/symbols.
+- **Level 5:** Word pair combinations, joining frequent words using common separators (`""`, `"_"`, `"-"`, `"."`).
+
+---
+
 ## Examples
 
 Run the tool via `main.py` by passing your target and desired options:
