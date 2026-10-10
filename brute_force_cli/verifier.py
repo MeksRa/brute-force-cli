@@ -6,16 +6,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Each format's library is imported lazily, inside the function that needs
-# it (see _require() below). This keeps `import brute_force_cli.verifier`
-# working even if the user only installed the subset of requirements.txt
-# they actually need (e.g. just pyzipper for .zip targets), and it gives a
-# clear, actionable error instead of an import crash at startup.
+_cached_rarfile = None
 
 
 def _require(module_name: str, package_hint: str):
-    """Imports `module_name`, raising a clear error pointing at the pip
-    package to install if it's missing."""
     try:
         return __import__(module_name)
     except ImportError as exc:
@@ -26,46 +20,33 @@ def _require(module_name: str, package_hint: str):
 
 
 def _get_rarfile():
-    rarfile = _require("rarfile", "rarfile")
+    global _cached_rarfile
+    if _cached_rarfile is not None:
+        return _cached_rarfile
 
-    # CRITICAL: UNRAR_TOOL must be set before the first RarFile() call so
-    # every multiprocessing worker (spawned or forked) sees it.
-    #
-    # Resolution order:
-    #   1. BFCLI_UNRAR_TOOL env var, if the user wants to pin a specific binary.
-    #   2. Whatever `unrar`/`unrar.exe` is first on PATH (covers Linux/macOS
-    #      package managers and a WinRAR install that added itself to PATH).
-    #   3. The common WinRAR install location, as a last-resort Windows default.
-    # If none of these exist, rarfile's own default is left alone; .rar
-    # targets will fail with a clear error from rarfile itself instead of
-    # silently pointing at a nonexistent Windows-only path.
+    rarfile = _require("rarfile", "rarfile")
     candidates = (
         os.environ.get("BFCLI_UNRAR_TOOL"),
         shutil.which("unrar"),
         shutil.which("unrar.exe"),
         r"C:\Program Files\WinRAR\UnRAR.exe",
+        r"C:\Program Files (x86)\WinRAR\UnRAR.exe",
+        "/usr/bin/unrar",
+        "/usr/local/bin/unrar",
+        "/opt/homebrew/bin/unrar",
     )
     for candidate in candidates:
         if candidate and Path(candidate).exists():
             rarfile.UNRAR_TOOL = candidate
             break
 
+    _cached_rarfile = rarfile
     return rarfile
 
 
 def verify_single_password(
     target_type: str, target_value: str, base_dir: Path, guess: str
 ) -> bool:
-    """Verifies a single password against the specified target type.
-
-    Returns True on a confirmed match, False for a wrong guess *or* a
-    recognized "this guess doesn't open the file" error from the
-    underlying library. Unexpected errors (missing file, missing unrar
-    binary, corrupt archive, programming errors) are logged once at debug
-    level and also treated as "not a match" so a single bad candidate
-    can't crash a long-running batch job -- but they're no longer
-    invisible, which was the previous behaviour.
-    """
     if target_type == "string":
         return guess == target_value
 
@@ -109,10 +90,8 @@ def verify_single_password(
                 return True
 
     except ImportError:
-        # Missing dependency is a real, actionable error -- let it propagate
-        # instead of being swallowed as "wrong password".
         raise
-    except Exception as exc:  # noqa: BLE001 - see docstring: intentional catch-all
+    except Exception as exc:  # noqa: BLE001
         logger.debug(
             "verify_single_password: guess rejected for target_type=%s (%s)",
             target_type,
@@ -124,14 +103,6 @@ def verify_single_password(
 
 
 def worker_batch_check(args: tuple) -> tuple[int, str | None]:
-    """Worker function for heavy multiprocessing modes operating on batches.
-
-    Returns (batch_size, match_or_None). Returning the batch's own size
-    alongside the result lets callers using imap_unordered report accurate
-    attempt counts, since unordered completion means a caller can't
-    otherwise line up "how many guesses were in *this* batch" with the
-    result that just came back.
-    """
     batch, target_type, target_value, base_dir = args
     if not batch:
         return 0, None
