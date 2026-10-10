@@ -1,0 +1,12 @@
+{
+  "target_type": "rar",
+  "target_value": "data/123412.rar",
+  "wordlist_name": "100k_passwords.txt",
+  "mode": "hybrid",
+  "mangling_level": 0,
+  "min_length": 1,
+  "max_length": 6,
+  "use_digits": true,
+  "use_uppercase": false,
+  "use_symbols": false
+}

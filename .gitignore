@@ -1,0 +1,17 @@
+.venv/
+venv/
+ENV/
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+.idea/
+.vscode/
+*.DS_Store
+
+*.log
+*.zip
+*.rar
+*.7z
+*.pdf
