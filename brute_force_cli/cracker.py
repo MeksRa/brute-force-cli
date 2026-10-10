@@ -19,34 +19,6 @@ from brute_force_cli.verifier import verify_single_password, worker_batch_check
 
 console = Console()
 
-def worker_index_range(args):
-    """Worker function that generates strings on-the-fly from index ranges and verifies them."""
-    start_idx, end_idx, length, charset, target_type, target_value, base_dir = args
-    base = len(charset)
-    chunk_len = end_idx - start_idx
-    batch_size = 1000 if target_type == "string" else 50
-    current_batch = []
-    
-    for i in range(start_idx, end_idx):
-        temp = i
-        chars = [''] * length
-        for j in range(length - 1, -1, -1):
-            temp, rem = divmod(temp, base)
-            chars[j] = charset[rem]
-        current_batch.append("".join(chars))
-        
-        if len(current_batch) >= batch_size:
-            res = worker_batch_check((current_batch, target_type, target_value, base_dir))
-            if res:
-                return (res, chunk_len)
-            current_batch = []
-            
-        if current_batch:
-            res = worker_batch_check((current_batch, target_type, target_value, base_dir))
-            if res:
-                return (res, chunk_len)
-            
-    return (None, chunk_len)
 
 class PasswordCracker:
     def __init__(self, config_path: Path, base_dir: Path) -> None:
@@ -56,6 +28,14 @@ class PasswordCracker:
         self.target_value: str = str(self.config.get("target_value", "")).strip()
         self.mode = str(self.config.get("mode", "hybrid")).lower()
         self.mangling_level = int(self.config.get("mangling_level", 0))
+
+        self.min_length = int(self.config.get("min_length", 1))
+        self.max_length = int(self.config.get("max_length", 5))
+        
+        self.use_lowercase = bool(self.config.get("use_lowercase", True))
+        self.use_uppercase = bool(self.config.get("use_uppercase", False))
+        self.use_digits = bool(self.config.get("use_digits", True))
+        self.use_symbols = bool(self.config.get("use_symbols", False))
 
         raw_target_type = str(self.config.get("target_type", "")).strip().lower()
         if not raw_target_type or raw_target_type == "auto":
@@ -240,6 +220,7 @@ class PasswordCracker:
             f"    [gray]• Uppercase letters (use_uppercase):[/] {self.config.get('use_uppercase', False)}\n"
             f"    [gray]• Digits (use_digits):[/] {self.config.get('use_digits', False)}\n"
             f"    [gray]• Symbols (use_symbols):[/] {self.config.get('use_symbols', False)}\n"
+            f"    [gray]• Mangling level (mangling_level):[/] {self.config.get('mangling_level', 0)}\n"
             f"    [gray]• Length range:[/] {min_len} - {max_len}\n"
             f"    [gray]• Total charset size:[/] {len(charset)} chars"
         )

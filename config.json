@@ -8,6 +8,6 @@
   "max_length": 5,
   "use_digits": true,
   "use_uppercase": false,
-  "use_lowercase": false,
+  "use_lowercase": true,
   "use_symbols": false
 }

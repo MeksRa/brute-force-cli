@@ -10,50 +10,52 @@ console = Console()
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Professional CLI Password Cracker for archives, documents, and strings."
-    )
+    parser = argparse.ArgumentParser(description="MeksRa CLI BruteForce")
+
+
 
     # Main arg, target of the attack
-    parser.add_argument(
-        "target",
-        nargs="?",
-        default=None,
-        help="Path to the target file (ZIP, 7Z, RAR, PDF, Office) or a string to test.",
-    )
+    parser.add_argument("target", type=str, help="Target string or path to file")
 
-    # Optional flag for the target type (default = 'auto')
-    parser.add_argument(
-        "-t",
-        "--target-type",
-        default="auto",
-        choices=["auto", "string", "zip", "7z", "rar", "pdf", "office"],
-        help="Target type specification (default: auto-detect from extension).",
-    )
+    # len flags
+    parser.add_argument("--min", dest="min_length", type=int, default=None, help="Minimum password length")
+    parser.add_argument("--max", dest="max_length", type=int, default=None, help="Maximum password length")
 
-    # Mode ("dictionary_only", "bruteforce_only", "hybrid")
-    parser.add_argument(
-        "-m",
-        "--mode",
-        choices=["dictionary_only", "bruteforce_only", "hybrid"],
-        help="Cracking mode (overrides config.json if specified).",
-    )
+    parser.add_argument("--config", type=str, default="config.json", help="Path to configuration file")
 
-    # Mangling level
-    parser.add_argument(
-        "--mangling",
-        type=int,
-        choices=[0, 1, 2, 3, 4, 5],
-        help="Mangling level for dictionary mutations (0-5).",
-    )
+    # Settings
+    config_group = parser.add_argument_group("Attack & Wordlist Settings")
 
-    # Path to config
-    parser.add_argument(
-        "-c",
-        "--config",
-        default="config.json",
-        help="Path to configuration JSON file (default: config.json).",
-    )
+    # Target type
+    config_group.add_argument("-t", "--type", dest="target_type", type=str, default=None, choices=["auto", "string", "zip", "7z", "rar", "pdf", "office"], help="Target type specification (default: auto-detect from extension).")
+
+    # Mode
+    config_group.add_argument("-m", "--mode", type=str, default=None, choices=["hybrid", "bruteforce_only", "dictionary_only"],help="Attack mode")
+
+    # Wordlist
+    config_group.add_argument("-w", "--wordlist", dest="wordlist_name", type=str, default=None, help="Wordlist filename or path.")
+
+    # Mangling
+    config_group.add_argument("--mangling", dest="mangling_level", type=int, default=None, choices=list(range(1, 6)),)
+
+    # Charset controls
+    charset_group = parser.add_argument_group("Charset Controls")
+
+    # Lower
+    charset_group.add_argument("-l", "--lower", dest="use_lowercase", action="store_true", default=None, help="Enable lowercase letters (a-z)")
+    charset_group.add_argument("-nl", "--no-lower", dest="use_lowercase", action="store_false", help="Disable lowercase letters")
+
+    # Upper
+    charset_group.add_argument("-u", "--upper", dest="use_uppercase", action="store_true", default=None, help="Enable uppercase letters (A-Z)")
+    charset_group.add_argument("-nu", "--no-upper", dest="use_uppercase", action="store_false", help="Disable uppercase letters")
+
+    # Digits
+    charset_group.add_argument("-d", "--digits", dest="use_digits", action="store_true", default=None, help="Enable digits (0-9)")
+    charset_group.add_argument("-nd", "--no-digits", dest="use_digits", action="store_false", help="Disable digits")
+
+    # Symbols
+    charset_group.add_argument("-s", "--symbols", dest="use_symbols", action="store_true", default=None, help="Enable symbols (punctuation)")
+    charset_group.add_argument("-ns", "--no-symbols", dest="use_symbols", action="store_false", help="Disable symbols")
 
     return parser.parse_args()
 
@@ -69,26 +71,49 @@ def main() -> None:
 
         # If the user provided a target using command line args,
         # override the value from the config.
+        # Override target if passed
         if args.target:
             cracker.target_value = args.target
 
-        # If the target type is explicitly specified (and differs from auto), or if we want
-        # to take the --target-type flag into account alongside auto-detection:
-        if args.target_type != "auto":
+        # Override target type
+        if args.target_type != "auto" and args.target_type is not None:
             cracker.target_type = args.target_type
+            cracker.config["target_type"] = args.target_type
         elif args.target:
-            # If the target argument was passed but the type was not specified (set to auto),
-            # trigger auto-detection for the new target
             cracker.target_type = cracker._autodetect_target_type(cracker.target_value)
+            cracker.config["target_type"] = cracker.target_type
 
-        # Override the mode if passed through a flag
+        # Override mode
         if args.mode:
             cracker.mode = args.mode
+            cracker.config["mode"] = args.mode
 
-        # Override the mangling level if passed through a flag
-        if args.mangling is not None:
-            cracker.mangling_level = args.mangling
+        # Override mangling level
+        if args.mangling_level is not None:
+            cracker.mangling_level = args.mangling_level
+            cracker.config["mangling_level"] = args.mangling_level
 
+        # Override length parameters
+        if args.min_length is not None:
+            cracker.min_length = args.min_length
+            cracker.config["min_length"] = args.min_length
+        if args.max_length is not None:
+            cracker.max_length = args.max_length
+            cracker.config["max_length"] = args.max_length
+
+        # Override charset toggles
+        if args.use_lowercase is not None:
+            cracker.use_lowercase = args.use_lowercase
+            cracker.config["use_lowercase"] = args.use_lowercase
+        if args.use_uppercase is not None:
+            cracker.use_uppercase = args.use_uppercase
+            cracker.config["use_uppercase"] = args.use_uppercase
+        if args.use_digits is not None:
+            cracker.use_digits = args.use_digits
+            cracker.config["use_digits"] = args.use_digits
+        if args.use_symbols is not None:
+            cracker.use_symbols = args.use_symbols
+            cracker.config["use_symbols"] = args.use_symbols
         # Run Cracker
         cracker.run()
 
