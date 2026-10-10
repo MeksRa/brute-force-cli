@@ -5,21 +5,48 @@ import string
 import time
 from pathlib import Path
 
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeRemainingColumn,
+)
+
 from brute_force_cli.mangling import generate_mutations
 from brute_force_cli.verifier import verify_single_password, worker_batch_check
 
-
-from rich.console import Console
-from rich.progress import (
-    Progress,
-    BarColumn,
-    TextColumn,
-    TimeRemainingColumn,
-    SpinnerColumn,
-)
-
 console = Console()
 
+def worker_index_range(args):
+    """Worker function that generates strings on-the-fly from index ranges and verifies them."""
+    start_idx, end_idx, length, charset, target_type, target_value, base_dir = args
+    base = len(charset)
+    chunk_len = end_idx - start_idx
+    batch_size = 1000 if target_type == "string" else 50
+    current_batch = []
+    
+    for i in range(start_idx, end_idx):
+        temp = i
+        chars = [''] * length
+        for j in range(length - 1, -1, -1):
+            temp, rem = divmod(temp, base)
+            chars[j] = charset[rem]
+        current_batch.append("".join(chars))
+        
+        if len(current_batch) >= batch_size:
+            res = worker_batch_check((current_batch, target_type, target_value, base_dir))
+            if res:
+                return (res, chunk_len)
+            current_batch = []
+            
+        if current_batch:
+            res = worker_batch_check((current_batch, target_type, target_value, base_dir))
+            if res:
+                return (res, chunk_len)
+            
+    return (None, chunk_len)
 
 class PasswordCracker:
     def __init__(self, config_path: Path, base_dir: Path) -> None:
@@ -161,13 +188,19 @@ class PasswordCracker:
         return None
 
     def brute_force(self) -> str | None:
-        charset = string.ascii_lowercase
+        charset = ""
+        if self.config.get("use_lowercase", True):
+            charset += string.ascii_lowercase
         if self.config.get("use_uppercase"):
             charset += string.ascii_uppercase
         if self.config.get("use_digits"):
             charset += string.digits
         if self.config.get("use_symbols"):
             charset += string.punctuation
+
+        if not charset:
+            console.print("[bold red][-] Error: Charset is empty! Enable at least one character set in config.json.[/]")
+            return None
 
         try:
             min_len = int(self.config.get("min_length", 1))
@@ -199,15 +232,27 @@ class PasswordCracker:
         attempts = 0
         start_time = time.perf_counter()
 
+
+        # Display current configuration summary for transparency
+        console.print(
+            f"[cyan][*] Configuration summary:[/]\n"
+            f"    [gray]• Lowercase letters (use_lowercase):[/] {self.config.get('use_lowercase', True)}\n"
+            f"    [gray]• Uppercase letters (use_uppercase):[/] {self.config.get('use_uppercase', False)}\n"
+            f"    [gray]• Digits (use_digits):[/] {self.config.get('use_digits', False)}\n"
+            f"    [gray]• Symbols (use_symbols):[/] {self.config.get('use_symbols', False)}\n"
+            f"    [gray]• Length range:[/] {min_len} - {max_len}\n"
+            f"    [gray]• Total charset size:[/] {len(charset)} chars"
+        )
         console.print(
             f"[cyan][*] Starting parallel brute-force (length: {min_len}-{max_len}) across {cpu_count} CPU cores...[/]"
         )
         
-        # Use smaller batch size for heavy file targets to keep progress bar responsive
-        batch_size = 50 if self.target_type != "string" else 5000
+        # Adaptive batch size: smaller for heavy files to keep UI responsive, larger for strings to maximize throughput
+        batch_size = 100 if self.target_type != "string" else 10000
 
-        with mp.Pool(processes=cpu_count) as pool:
-            with Progress(
+        with (
+            mp.Pool(processes=cpu_count) as pool,
+            Progress(
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 "[progress.percentage]{task.percentage:>3.1f}%",
@@ -215,7 +260,8 @@ class PasswordCracker:
                 SpinnerColumn(),
                 TimeRemainingColumn(),
                 console=console,
-            ) as progress:
+            ) as progress,
+        ):
                 
                 # Create a single task once before the loop to prevent stacking bars
                 task_id = progress.add_task("[cyan]Preparing...", total=100)
@@ -233,10 +279,9 @@ class PasswordCracker:
 
                     def batch_generator(current_len=length):
                         current_batch = []
-                        for tuple_guess in itertools.product(
-                            charset, repeat=current_len
-                        ):
-                            current_batch.append("".join(tuple_guess))
+                        join = "".join
+                        for tuple_guess in itertools.product(charset, repeat=current_len):
+                            current_batch.append(join(tuple_guess))
                             if len(current_batch) >= batch_size:
                                 yield (
                                     current_batch,
@@ -254,7 +299,7 @@ class PasswordCracker:
                             )
 
                     for result in pool.imap_unordered(
-                        worker_batch_check, batch_generator(), chunksize=2
+                        worker_batch_check, batch_generator(), chunksize=4
                     ):
                         attempts += batch_size
                         progress.update(task_id, advance=batch_size)
@@ -276,6 +321,7 @@ class PasswordCracker:
         elapsed = time.perf_counter() - start_time
         print(f"[-] Password not found after search ({elapsed:.2f}s).")
         return None
+
 
     def run(self) -> None:
         if not self.target_value:
@@ -315,17 +361,17 @@ class PasswordCracker:
 
         if self.mode == "dictionary_only":
             if result := self.check_dictionary():
-                print(result)
+                print(f"_password:{result}")
         elif self.mode == "bruteforce_only":
             if result := self.brute_force():
-                print(result)
+                print(f"_password:{result}")
         elif self.mode == "hybrid":
             result = self.check_dictionary()
             if result:
-                print(result)
+                print(f"_password:{result}")
             else:
                 if result_bf := self.brute_force():
-                    print(result_bf)
+                   print(f"_password:{result_bf}")
 
         total_elapsed = time.perf_counter() - start_total
         console.print(f"[cyan][=] Total execution time: {total_elapsed:.4f}s[/]")
