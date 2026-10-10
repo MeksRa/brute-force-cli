@@ -1,6 +1,6 @@
 {
   "target_type": "auto",
-  "target_value": "data/123456.rar",
+  "target_value": "",
   "wordlist_name": "100k_passwords.txt",
   "mode": "hybrid",
   "mangling_level": 0,

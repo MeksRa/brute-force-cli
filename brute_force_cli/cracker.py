@@ -164,6 +164,13 @@ class PasswordCracker:
             print("[-] Invalid length bounds (min_length > max_length or < 1).")
             return None
 
+        # autocorrection if len word(target value) > max_len
+        if self.target_type == "string" and len(self.target_value) > max_len:
+            print(
+                f"[*] Note: Target string length ({len(self.target_value)}) exceeds config max_length ({max_len}). Adjusting limit."
+            )
+            max_len = len(self.target_value)
+
         cpu_count = mp.cpu_count()
         attempts = 0
         start_time = time.perf_counter()
