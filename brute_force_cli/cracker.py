@@ -1,16 +1,18 @@
 import itertools
 import json
 import multiprocessing as mp
+import os
 import string
 import time
+from datetime import datetime
 from pathlib import Path
 
 from rich.console import Console
 from rich.progress import (
     BarColumn,
     Progress,
-    SpinnerColumn,
     TextColumn,
+    TimeElapsedColumn,
     TimeRemainingColumn,
 )
 
@@ -47,8 +49,8 @@ class PasswordCracker:
         self.wordlist_path = self.base_dir / "data" / wordlist_name
         self._common_words: list[str] = []
 
-        if self.mode in ("dictionary_only", "hybrid"):
-            self._load_wordlist()
+     #   if self.mode in ("dictionary_only", "hybrid"):
+      #      self._load_wordlist()
 
     def _autodetect_target_type(self, target_value: str) -> str:
         """Automatically determines the target type based on the file extension."""
@@ -237,8 +239,8 @@ class PasswordCracker:
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 "[progress.percentage]{task.percentage:>3.1f}%",
+                TimeElapsedColumn(),
                 "•",
-                SpinnerColumn(),
                 TimeRemainingColumn(),
                 console=console,
             ) as progress,
@@ -289,6 +291,7 @@ class PasswordCracker:
                             pool.terminate()
                             elapsed = time.perf_counter() - start_time
                             speed = attempts / elapsed if elapsed > 0 else 0
+                            self.save_successful_result(self.target_value, result)
                             console.print(
                                 f"\n[bold green][+] SUCCESS! Password cracked![/]\n"
                                 f"    [gray]Target:[/] '{self.target_value}' ({self.target_type})\n"
@@ -356,3 +359,16 @@ class PasswordCracker:
 
         total_elapsed = time.perf_counter() - start_total
         console.print(f"\n[cyan][=] Total execution time: {total_elapsed:.4f}s[/]")
+
+
+    def save_successful_result(self, target_name, password):
+        output_dir = "output"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        file_path = os.path.join(output_dir, "passwords.txt")
+        timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
+        
+        with open(file_path, "a", encoding="utf-8") as f:
+            f.write(f"[{timestamp}] Target: {target_name} | Password: {password}\n")
+
+    

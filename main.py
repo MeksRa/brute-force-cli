@@ -86,6 +86,19 @@ def main() -> None:
             cracker.target_type = cracker._autodetect_target_type(cracker.target_value)
             cracker.config["target_type"] = cracker.target_type
 
+        # Override wordlist
+        if args.wordlist_name:
+            wordlist_arg = Path(args.wordlist_name)
+            
+            if not wordlist_arg.is_absolute() and not wordlist_arg.exists():
+                cracker.wordlist_path = cracker.base_dir / "data" / args.wordlist_name
+            else:
+                cracker.wordlist_path = wordlist_arg
+
+            cracker.config["wordlist_name"] = args.wordlist_name
+        if cracker.mode in ("dictionary_only", "hybrid"):
+            cracker._load_wordlist()
+
         # Override mode
         if args.mode:
             cracker.mode = args.mode
