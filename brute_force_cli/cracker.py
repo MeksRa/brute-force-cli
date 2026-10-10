@@ -2,6 +2,7 @@ import itertools
 import json
 import multiprocessing as mp
 import os
+import stat
 import string
 import time
 from datetime import datetime
@@ -33,7 +34,7 @@ class PasswordCracker:
 
         self.min_length = int(self.config.get("min_length", 1))
         self.max_length = int(self.config.get("max_length", 5))
-        
+
         self.use_lowercase = bool(self.config.get("use_lowercase", True))
         self.use_uppercase = bool(self.config.get("use_uppercase", False))
         self.use_digits = bool(self.config.get("use_digits", True))
@@ -48,9 +49,6 @@ class PasswordCracker:
         wordlist_name = str(self.config.get("wordlist_name", "100k_passwords.txt"))
         self.wordlist_path = self.base_dir / "data" / wordlist_name
         self._common_words: list[str] = []
-
-     #   if self.mode in ("dictionary_only", "hybrid"):
-      #      self._load_wordlist()
 
     def _autodetect_target_type(self, target_value: str) -> str:
         """Automatically determines the target type based on the file extension."""
@@ -76,9 +74,7 @@ class PasswordCracker:
         if ext in extension_map:
             return extension_map[ext]
 
-        if not (self.base_dir / target_value).exists():
-            return "string"
-
+        # No recognized extension: treat it as a literal target string.
         return "string"
 
     def _load_config(self, path: Path) -> dict:
@@ -106,6 +102,24 @@ class PasswordCracker:
         except Exception as e:  # noqa: BLE001
             print(f"[-] Failed to load dictionary: {e}")
 
+    def _build_charset(self) -> str:
+        """Builds the active charset from the (CLI-overridable) instance flags.
+
+        These attributes, not self.config, are the single source of truth:
+        main.py updates both when a CLI flag is passed, but only the
+        attributes are guaranteed to reflect the final, merged state.
+        """
+        charset = ""
+        if self.use_lowercase:
+            charset += string.ascii_lowercase
+        if self.use_uppercase:
+            charset += string.ascii_uppercase
+        if self.use_digits:
+            charset += string.digits
+        if self.use_symbols:
+            charset += string.punctuation
+        return charset
+
     def check_dictionary(self) -> str | None:
         if not self._common_words:
             print("[-] Dictionary is empty or missing.")
@@ -114,84 +128,60 @@ class PasswordCracker:
         start_time = time.perf_counter()
 
         if self.mangling_level <= 0:
-            print("[*] Level 0: Running high-speed direct dictionary check...")
-            for word in self._common_words:
-                if verify_single_password(
-                    self.target_type, self.target_value, self.base_dir, word
-                ):
-                    elapsed = time.perf_counter() - start_time
-                    console.print(
-                       f"\n[bold green]![/] [bold green]MATCH FOUND IN DICTIONARY![/]\n"
-                        f"    [gray]Target:[/] '{self.target_value}' ({self.target_type})\n"
-                        f"    [bold green]Password:[/] '{word}'\n"
-                        f"    [gray]Time elapsed:[/] {elapsed:.4f}s"
-                        )
-                    return word
-            print("[-] Target password not found in dictionary search.")
-            return None
+            candidates = self._common_words
+            print(
+                f"[*] Level 0: Running parallel direct dictionary check across "
+                f"{mp.cpu_count()} CPU cores..."
+            )
+        else:
+            cpu_count = mp.cpu_count()
+            print(
+                f"[*] Level {self.mangling_level}: Starting parallel mangled dictionary "
+                f"search across {cpu_count} CPU cores..."
+            )
+            candidates = generate_mutations(self._common_words, self.mangling_level)
+            print(f"[+] Generated {len(candidates):,} total candidates after mangling.")
 
         cpu_count = mp.cpu_count()
-        print(
-            f"[*] Level {self.mangling_level}: Starting parallel mangled dictionary search across {cpu_count} CPU cores..."
-        )
-
-        unique_candidates = generate_mutations(self._common_words, self.mangling_level)
-        print(
-            f"[+] Generated {len(unique_candidates):,} total candidates after mangling."
-        )
-
         batch_size = 1000
         batches = [
             (
-                unique_candidates[i : i + batch_size],
+                candidates[i : i + batch_size],
                 self.target_type,
                 self.target_value,
                 self.base_dir,
             )
-            for i in range(0, len(unique_candidates), batch_size)
+            for i in range(0, len(candidates), batch_size)
         ]
 
         with mp.Pool(processes=cpu_count) as pool:
-            for result in pool.imap_unordered(worker_batch_check, batches):
+            for _batch_size, result in pool.imap_unordered(worker_batch_check, batches):
                 if result:
                     pool.terminate()
                     elapsed = time.perf_counter() - start_time
                     console.print(
-                       f"\n[bold green]![/] [bold green]MATCH FOUND IN DICTIONARY![/]\n"
-                        f"    [dim]Target:[/] '{self.target_value}' ({self.target_type})\n"
+                        f"\n[bold green]![/] [bold green]MATCH FOUND IN DICTIONARY![/]\n"
+                        f"    [gray]Target:[/] '{self.target_value}' ({self.target_type})\n"
                         f"    [bold green]Password:[/] '{result}'\n"
-                        f"    [dim]Time elapsed:[/] {elapsed:.4f}s"
-                        )
-
+                        f"    [gray]Time elapsed:[/] {elapsed:.4f}s"
+                    )
                     return result
-                    
 
         console.print("[yellow][-] Target password not found in dictionary search.[/]")
         return None
 
     def brute_force(self) -> str | None:
-        charset = ""
-        if self.config.get("use_lowercase", True):
-            charset += string.ascii_lowercase
-        if self.config.get("use_uppercase"):
-            charset += string.ascii_uppercase
-        if self.config.get("use_digits"):
-            charset += string.digits
-        if self.config.get("use_symbols"):
-            charset += string.punctuation
+        charset = self._build_charset()
 
         if not charset:
-            console.print("[bold red][-] Error: Charset is empty! Enable at least one character set in config.json.[/]")
-            return None
-
-        try:
-            min_len = int(self.config.get("min_length", 1))
-            max_len = int(self.config.get("max_length", 5))
-        except ValueError:
             console.print(
-                "[bold red][-] Invalid length settings in config.json. Must be integers.[/]"
+                "[bold red][-] Error: Charset is empty! Enable at least one "
+                "character set in config.json.[/]"
             )
             return None
+
+        min_len = self.min_length
+        max_len = self.max_length
 
         if min_len < 1 or max_len < min_len:
             console.print(
@@ -202,7 +192,8 @@ class PasswordCracker:
         # Autocorrect if length of target value exceeds max_len
         if self.target_type == "string" and len(self.target_value) > max_len:
             console.print(
-                f"[yellow][*] Note: Target string length ({len(self.target_value)}) exceeds config max_length ({max_len}). Adjusting limit.[/]"
+                f"[yellow][*] Note: Target string length ({len(self.target_value)}) "
+                f"exceeds config max_length ({max_len}). Adjusting limit.[/]"
             )
             max_len = len(self.target_value)
 
@@ -214,22 +205,22 @@ class PasswordCracker:
         attempts = 0
         start_time = time.perf_counter()
 
-
         # Display current configuration summary for transparency
         console.print(
             f"[cyan][*] Configuration summary:[/]\n"
-            f"    [gray]• Lowercase letters (use_lowercase):[/] {self.config.get('use_lowercase', True)}\n"
-            f"    [gray]• Uppercase letters (use_uppercase):[/] {self.config.get('use_uppercase', False)}\n"
-            f"    [gray]• Digits (use_digits):[/] {self.config.get('use_digits', False)}\n"
-            f"    [gray]• Symbols (use_symbols):[/] {self.config.get('use_symbols', False)}\n"
-            f"    [gray]• Mangling level (mangling_level):[/] {self.config.get('mangling_level', 0)}\n"
+            f"    [gray]• Lowercase letters (use_lowercase):[/] {self.use_lowercase}\n"
+            f"    [gray]• Uppercase letters (use_uppercase):[/] {self.use_uppercase}\n"
+            f"    [gray]• Digits (use_digits):[/] {self.use_digits}\n"
+            f"    [gray]• Symbols (use_symbols):[/] {self.use_symbols}\n"
+            f"    [gray]• Mangling level (mangling_level):[/] {self.mangling_level}\n"
             f"    [gray]• Length range:[/] {min_len} - {max_len}\n"
             f"    [gray]• Total charset size:[/] {len(charset)} chars"
         )
         console.print(
-            f"[cyan][*] Starting parallel brute-force (length: {min_len}-{max_len}) across {cpu_count} CPU cores...[/]"
+            f"[cyan][*] Starting parallel brute-force (length: {min_len}-{max_len}) "
+            f"across {cpu_count} CPU cores...[/]"
         )
-        
+
         # Adaptive batch size: smaller for heavy files to keep UI responsive, larger for strings to maximize throughput
         batch_size = 100 if self.target_type != "string" else 10000
 
@@ -245,67 +236,65 @@ class PasswordCracker:
                 console=console,
             ) as progress,
         ):
-                
-                # Create a single task once before the loop to prevent stacking bars
-                task_id = progress.add_task("[cyan]Preparing...", total=100)
+            # Create a single task once before the loop to prevent stacking bars
+            task_id = progress.add_task("[cyan]Preparing...", total=100)
 
-                for length in range(min_len, max_len + 1):
-                    total_combinations = len(charset) ** length
-                    
-                    # Update task description, total combinations, and reset progress for the new length
-                    progress.update(
-                        task_id,
-                        description=f"[cyan]Length {length}[/]",
-                        total=total_combinations,
-                        completed=0
-                    )
+            for length in range(min_len, max_len + 1):
+                total_combinations = len(charset) ** length
 
-                    def batch_generator(current_len=length):
-                        current_batch = []
-                        join = "".join
-                        for tuple_guess in itertools.product(charset, repeat=current_len):
-                            current_batch.append(join(tuple_guess))
-                            if len(current_batch) >= batch_size:
-                                yield (
-                                    current_batch,
-                                    self.target_type,
-                                    self.target_value,
-                                    self.base_dir,
-                                )
-                                current_batch = []
-                        if current_batch:
+                # Update task description, total combinations, and reset progress for the new length
+                progress.update(
+                    task_id,
+                    description=f"[cyan]Length {length}[/]",
+                    total=total_combinations,
+                    completed=0,
+                )
+
+                def batch_generator(current_len=length):
+                    current_batch = []
+                    join = "".join
+                    for tuple_guess in itertools.product(charset, repeat=current_len):
+                        current_batch.append(join(tuple_guess))
+                        if len(current_batch) >= batch_size:
                             yield (
                                 current_batch,
                                 self.target_type,
                                 self.target_value,
                                 self.base_dir,
                             )
+                            current_batch = []
+                    if current_batch:
+                        yield (
+                            current_batch,
+                            self.target_type,
+                            self.target_value,
+                            self.base_dir,
+                        )
 
-                    for result in pool.imap_unordered(
-                        worker_batch_check, batch_generator(), chunksize=4
-                    ):
-                        attempts += batch_size
-                        progress.update(task_id, advance=batch_size)
-                        if result:
-                            progress.update(task_id, completed=total_combinations)
-                            pool.terminate()
-                            elapsed = time.perf_counter() - start_time
-                            speed = attempts / elapsed if elapsed > 0 else 0
-                            self.save_successful_result(self.target_value, result)
-                            console.print(
-                                f"\n[bold green][+] SUCCESS! Password cracked![/]\n"
-                                f"    [gray]Target:[/] '{self.target_value}' ({self.target_type})\n"
-                                f"    [bold green]Password:[/] '{result}'\n"
-                                f"    [gray]Attempts evaluated:[/] ~{attempts:,}\n"
-                                f"    [gray]Time elapsed:[/] {elapsed:.2f}s\n"
-                                f"    [gray]Speed:[/] {speed:,.0f} attempts/sec"
-                            )
-                            return result
+                for batch_len, result in pool.imap_unordered(
+                    worker_batch_check, batch_generator(), chunksize=4
+                ):
+                    attempts += batch_len
+                    progress.update(task_id, advance=batch_len)
+                    if result:
+                        progress.update(task_id, completed=total_combinations)
+                        pool.terminate()
+                        elapsed = time.perf_counter() - start_time
+                        speed = attempts / elapsed if elapsed > 0 else 0
+                        self.save_successful_result(self.target_value, result)
+                        console.print(
+                            f"\n[bold green][+] SUCCESS! Password cracked![/]\n"
+                            f"    [gray]Target:[/] '{self.target_value}' ({self.target_type})\n"
+                            f"    [bold green]Password:[/] '{result}'\n"
+                            f"    [gray]Attempts evaluated:[/] ~{attempts:,}\n"
+                            f"    [gray]Time elapsed:[/] {elapsed:.2f}s\n"
+                            f"    [gray]Speed:[/] {speed:,.0f} attempts/sec"
+                        )
+                        return result
 
         elapsed = time.perf_counter() - start_time
         print(f"[-] Password not found after search ({elapsed:.2f}s).")
         return None
-
 
     def run(self) -> None:
         if not self.target_value:
@@ -355,20 +344,31 @@ class PasswordCracker:
                 print(f"_password:{result}")
             else:
                 if result_bf := self.brute_force():
-                   print(f"_password:{result_bf}")
+                    print(f"_password:{result_bf}")
 
         total_elapsed = time.perf_counter() - start_total
         console.print(f"\n[cyan][=] Total execution time: {total_elapsed:.4f}s[/]")
 
-
     def save_successful_result(self, target_name, password):
-        output_dir = "output"
-        os.makedirs(output_dir, exist_ok=True)
-        
-        file_path = os.path.join(output_dir, "passwords.txt")
+        """Appends a found password to base_dir/output/passwords.txt.
+
+        Uses base_dir (not the process CWD) so the output location doesn't
+        depend on where the CLI happens to be invoked from, and restricts
+        the file to owner-only read/write since it stores recovered
+        secrets in plaintext.
+        """
+        output_dir = self.base_dir / "output"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        file_path = output_dir / "passwords.txt"
         timestamp = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
-        
+
         with open(file_path, "a", encoding="utf-8") as f:
             f.write(f"[{timestamp}] Target: {target_name} | Password: {password}\n")
 
-    
+        try:
+            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
+        except OSError:
+            # Best-effort on platforms/filesystems that don't support chmod
+            # (e.g. some Windows/FAT setups); not worth failing the run over.
+            pass
