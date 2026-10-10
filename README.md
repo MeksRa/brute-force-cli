@@ -74,6 +74,16 @@ A fast, modular, and high-performance CLI password cracking and auditing utility
 
 ---
 
+## Attack Modes
+
+The tool supports 3 different attack modes (`-m`, `--mode`):
+
+1. **`hybrid` (Default)** — Combines dictionary words with character generation and mutation strategies for wider coverage.
+2. **`dictionary_only`** — Performs a pure dictionary attack, checking only the passwords listed in the specified wordlist file.
+3. **`bruteforce_only`** — Performs a pure brute-force enumeration based strictly on length and character sets, without using wordlists.
+
+---
+
 ## Examples
 
 Run the tool via `main.py` by passing your target and desired options:
@@ -81,6 +91,8 @@ Run the tool via `main.py` by passing your target and desired options:
 ```bash
 python main.py <target> [flags]
 ```
+
+> 💡 **Need all available flags?** Check the [CLI Options Reference](#cli-options-reference) below or run `python main.py --help`.
 
 ### 1. String Target (Auto-detect length)
 
@@ -105,6 +117,8 @@ python main.py <target> [flags]
 ---
 
 ## Configuration & Defaults
+
+Instead of passing multiple flags every time, you can use a JSON configuration file.
 
 The tool automatically loads its configuration by default. Here are the **default settings** used under the hood:
 
