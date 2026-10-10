@@ -6,8 +6,8 @@
   "mangling_level": 0,
   "min_length": 1,
   "max_length": 5,
-  "use_digits": true,
+  "use_digits": false,
   "use_uppercase": false,
-  "use_lowercase": true,
+  "use_lowercase": false,
   "use_symbols": false
 }

@@ -1,5 +1,8 @@
 import argparse
 import multiprocessing as mp
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 from rich.console import Console
@@ -114,8 +117,13 @@ def main() -> None:
         if args.use_symbols is not None:
             cracker.use_symbols = args.use_symbols
             cracker.config["use_symbols"] = args.use_symbols
-        # Run Cracker
-        cracker.run()
+        try:
+            # Run Cracker
+            cracker.run()
+        except KeyboardInterrupt:
+            subprocess.run(['cls' if os.name == 'nt' else 'clear'], check=False, shell=True)
+            console.print("\n[yellow][!] Operation interrupted by user. Exiting...[/]")
+            sys.exit(0)
 
     except Exception as e:  # noqa: BLE001
         print(f"[-] Fatal Error: {e}")
@@ -124,7 +132,7 @@ def main() -> None:
 if __name__ == "__main__":
     mp.freeze_support()
 
-    console.rule("[bold cyan]Password Cracker Utility[/]")
-    console.print("[dim green]• MeksRa CLI BruteForce[/]\n")
+    console.rule("[bold cyan]MeksRa CLI BruteForce[/]")
+    console.print("[dim green]github.com/meksra[/]\n")
     
     main()

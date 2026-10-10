@@ -355,4 +355,4 @@ class PasswordCracker:
                    print(f"_password:{result_bf}")
 
         total_elapsed = time.perf_counter() - start_total
-        console.print(f"[cyan][=] Total execution time: {total_elapsed:.4f}s[/]")
+        console.print(f"\n[cyan][=] Total execution time: {total_elapsed:.4f}s[/]")
