@@ -1,7 +1,9 @@
 def generate_mutations(words: list[str], level: int) -> list[str]:
     """Generates password mutations based on structured, high-performance levels 0 to 5."""
     mutations = set()
-    base_words = [w.strip() for w in words if w and isinstance(w, str)]
+    # Strip first, *then* filter on truthiness, so a whitespace-only entry
+    # (e.g. "   ") doesn't survive as an empty-string candidate.
+    base_words = [w.strip() for w in words if isinstance(w, str) and w.strip()]
 
     for word in base_words:
         # Level 0: Base registers
