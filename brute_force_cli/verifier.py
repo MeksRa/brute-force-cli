@@ -1,5 +1,6 @@
 import io
 from pathlib import Path
+
 import msoffcrypto
 import py7zr
 import pypdf
@@ -10,7 +11,9 @@ import rarfile
 rarfile.UNRAR_TOOL = r"C:\Program Files\WinRAR\UnRAR.exe"
 
 
-def verify_single_password(target_type: str, target_value: str, base_dir: Path, guess: str) -> bool:
+def verify_single_password(
+    target_type: str, target_value: str, base_dir: Path, guess: str
+) -> bool:
     """Verifies a single password against the specified target type."""
     if target_type == "string":
         return guess == target_value
@@ -22,14 +25,14 @@ def verify_single_password(target_type: str, target_value: str, base_dir: Path, 
             with pyzipper.AESZipFile(target_file_path) as zf:
                 zf.read(zf.namelist()[0], pwd=guess.encode("utf-8"))
                 return True
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False
 
     if target_type == "7z":
         try:
             with py7zr.SevenZipFile(target_file_path, mode="r", password=guess) as szf:
                 return szf.testzip() is None
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False
 
     if target_type == "rar":
@@ -40,7 +43,7 @@ def verify_single_password(target_type: str, target_value: str, base_dir: Path, 
                 with rf.open(info) as fp:
                     fp.read(1)
                 return True
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False
 
     if target_type == "pdf":
@@ -49,7 +52,7 @@ def verify_single_password(target_type: str, target_value: str, base_dir: Path, 
             if not reader.is_encrypted:
                 return True
             return bool(reader.decrypt(guess))
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False
 
     if target_type == "office":
@@ -60,7 +63,7 @@ def verify_single_password(target_type: str, target_value: str, base_dir: Path, 
                 dummy = io.BytesIO()
                 office_file.decrypt(dummy)
                 return True
-        except Exception:
+        except Exception:  # noqa: BLE001
             return False
 
     return False

@@ -6,7 +6,7 @@
   "mangling_level": 0,
   "min_length": 1,
   "max_length": 6,
-  "use_digits": true,
+  "use_digits": false,
   "use_uppercase": false,
   "use_symbols": false
 }

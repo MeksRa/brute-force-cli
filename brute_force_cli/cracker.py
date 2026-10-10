@@ -60,7 +60,6 @@ class PasswordCracker:
 
         return "string"
 
-    # ===
     def _load_config(self, path: Path) -> dict:
         if not path.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
@@ -83,7 +82,7 @@ class PasswordCracker:
                 self._common_words = [line.strip() for line in file if line.strip()]
             elapsed = time.perf_counter() - start
             print(f"[+] Loaded {len(self._common_words):,} words ({elapsed:.3f}s).")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(f"[-] Failed to load dictionary: {e}")
 
     def check_dictionary(self) -> str | None:
@@ -114,10 +113,7 @@ class PasswordCracker:
             f"[*] Level {self.mangling_level}: Starting parallel mangled dictionary search across {cpu_count} CPU cores..."
         )
 
-        mangled_candidates = []
-        for word in self._common_words:
-            mangled_candidates.extend(generate_mutations(word, self.mangling_level))
-        unique_candidates = list(dict.fromkeys(mangled_candidates))
+        unique_candidates = generate_mutations(self._common_words, self.mangling_level)
         print(
             f"[+] Generated {len(unique_candidates):,} total candidates after mangling."
         )
@@ -177,22 +173,27 @@ class PasswordCracker:
         )
         batch_size = 5000
 
-        for length in range(min_len, max_len + 1):
+        with mp.Pool(processes=cpu_count) as pool:
+            for length in range(min_len, max_len + 1):
+                print(f"[DEBUG] Preparing batches for length {length}...")
 
-            def batch_generator():
-                current_batch = []
-                for tuple_guess in itertools.product(charset, repeat=length):
-                    current_batch.append("".join(tuple_guess))
-                    if len(current_batch) >= batch_size:
+                def batch_generator(current_len=length):
+                    current_batch = []
+                    for tuple_guess in itertools.product(charset, repeat=current_len):
+                        current_batch.append("".join(tuple_guess))
+                        if len(current_batch) >= batch_size:
+                            yield current_batch
+                            current_batch = []
+                    if current_batch:
                         yield current_batch
-                        current_batch = []
-                if current_batch:
-                    yield current_batch
 
-            with mp.Pool(processes=cpu_count) as pool:
-                tasks = (
+                tasks = [
                     (batch, self.target_type, self.target_value, self.base_dir)
                     for batch in batch_generator()
+                ]
+
+                print(
+                    f"[DEBUG] Length {length}: Generated {len(tasks)} batches. Sending to pool via imap_unordered..."
                 )
 
                 for result in pool.imap_unordered(worker_batch_check, tasks):

@@ -39,8 +39,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--mangling",
         type=int,
-        choices=[0, 1, 2, 3],
-        help="Mangling level for dictionary mutations (0-3).",
+        choices=[0, 1, 2, 3, 4, 5],
+        help="Mangling level for dictionary mutations (0-5).",
     )
 
     # Path to config
@@ -88,7 +88,7 @@ def main() -> None:
         # Run Cracker
         cracker.run()
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"[-] Fatal Error: {e}")
 
 
