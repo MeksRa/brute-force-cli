@@ -72,11 +72,18 @@ def main() -> None:
         # Initialize the cracker.
         cracker = PasswordCracker(config_path=config_path, base_dir=base_dir)
 
-        # If the user provided a target using command line args,
-        # override the value from the config.
+        # Apply every CLI override to the cracker *before* anything that
+        # depends on the resulting state (e.g. wordlist loading depends on
+        # the final mode, so `mode` must be settled first).
+
         # Override target if passed
         if args.target:
             cracker.target_value = args.target
+
+        # Override mode
+        if args.mode:
+            cracker.mode = args.mode
+            cracker.config["mode"] = args.mode
 
         # Override target type
         if args.target_type != "auto" and args.target_type is not None:
@@ -89,20 +96,13 @@ def main() -> None:
         # Override wordlist
         if args.wordlist_name:
             wordlist_arg = Path(args.wordlist_name)
-            
+
             if not wordlist_arg.is_absolute() and not wordlist_arg.exists():
                 cracker.wordlist_path = cracker.base_dir / "data" / args.wordlist_name
             else:
                 cracker.wordlist_path = wordlist_arg
 
             cracker.config["wordlist_name"] = args.wordlist_name
-        if cracker.mode in ("dictionary_only", "hybrid"):
-            cracker._load_wordlist()
-
-        # Override mode
-        if args.mode:
-            cracker.mode = args.mode
-            cracker.config["mode"] = args.mode
 
         # Override mangling level
         if args.mangling_level is not None:
@@ -130,6 +130,12 @@ def main() -> None:
         if args.use_symbols is not None:
             cracker.use_symbols = args.use_symbols
             cracker.config["use_symbols"] = args.use_symbols
+
+        # Now that target/mode/wordlist overrides are all settled, load the
+        # wordlist if the *final* mode actually needs it.
+        if cracker.mode in ("dictionary_only", "hybrid"):
+            cracker._load_wordlist()
+
         try:
             # Run Cracker
             cracker.run()
