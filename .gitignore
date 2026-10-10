@@ -19,3 +19,5 @@ __pycache__/
 *.pptx
 *.doc
 *.docx
+
+output/
