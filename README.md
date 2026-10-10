@@ -88,13 +88,26 @@ The tool supports 3 different attack modes (`-m`, `--mode`):
 
 Mangling rules mutate words from your wordlist to generate smart variations (useful for dictionary and hybrid attacks). Available levels:
 
+Basic case variations (as-is, LOWERCASE, UPPERCASE, Capitalized) for levels 1-5.
+
 - **Level 0 (Default):** Disabled. Words from the dictionary are used as-is.
-- **Basic case variations** (as-is, LOWERCASE, UPPERCASE, Capitalized).
 - **Level 1:** Adds standard common suffixes and prefixes (`"123"`, `"1"`, `"0"`, `"!"`, `"@"`, `"2026"`, `"2025"`).
 - **Level 2:** Reverses words (`word[::-1]`) and appends extended tails/suffixes (e.g., `"12345"`, `"777"`, `"007"`, `"_!"`, `"pass"`).
 - **Level 3 (Hashcat-style lite):** Structural rules including case swapping (`swapcase()`), word doubling (`adminadmin`), left/right character truncation, and cyclic shifts.
 - **Level 4:** Leetspeak transformations (`1337-speak`), replacing standard letters with visually similar numbers/symbols.
 - **Level 5:** Word pair combinations, joining frequent words using common separators (`""`, `"_"`, `"-"`, `"."`).
+
+---
+
+### Explicit Target Type (`-t`, `--type`)
+
+By default, the tool automatically detects the target type based on the file extension (or defaults to `string` if no extension is present). 
+
+However, if you want to override auto-detection or enforce a specific handler, you can explicitly set the type using the `-t` or `--type` flag:
+
+```bash
+python main.py 1.pdf -t string -d -s -l
+```
 
 ---
 
@@ -153,6 +166,7 @@ The tool automatically loads its configuration by default. Here are the **defaul
 ```
 
 If you want to use a custom configuration file instead of the default one, specify it via `--config`:
+
 ```bash
 python main.py secret.zip --config custom_config.json
 ```
@@ -196,3 +210,6 @@ Charset Controls:
 ## License
 
 Distributed under the **MIT License**. See the `LICENSE` file for more details.
+
+---
+Maintained by [MeksRa](https://github.com/MeksRa)
