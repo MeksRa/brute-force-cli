@@ -14,10 +14,18 @@ class PasswordCracker:
         self.base_dir = base_dir
         self.config = self._load_config(config_path)
 
-        self.target_type: str = str(self.config.get("target_type", "string")).lower()
+        # self.target_type: str = str(self.config.get("target_type", "string")).lower()
         self.target_value: str = str(self.config.get("target_value", "")).strip()
         self.mode = str(self.config.get("mode", "hybrid")).lower()
         self.mangling_level = int(self.config.get("mangling_level", 0))
+
+        # ===
+        raw_target_type = str(self.config.get("target_type", "")).strip().lower()
+        if not raw_target_type or raw_target_type == "auto":
+            self.target_type = self._autodetect_target_type(self.target_value)
+        else:
+            self.target_type = raw_target_type
+        # ===
 
         wordlist_name = str(self.config.get("wordlist_name", "100k_passwords.txt"))
         self.wordlist_path = self.base_dir / "data" / wordlist_name
@@ -26,6 +34,37 @@ class PasswordCracker:
         if self.mode in ("dictionary_only", "hybrid"):
             self._load_wordlist()
 
+    # ==
+    def _autodetect_target_type(self, target_value: str) -> str:
+        """Automatically determines the target type based on the file extension."""
+        if not target_value:
+            return "string"
+
+        path = Path(target_value)
+        ext = path.suffix.lower()
+
+        extension_map = {
+            ".zip": "zip",
+            ".7z": "7z",
+            ".rar": "rar",
+            ".pdf": "pdf",
+            ".docx": "office",
+            ".doc": "office",
+            ".xlsx": "office",
+            ".xls": "office",
+            ".pptx": "office",
+            ".ppt": "office",
+        }
+
+        if ext in extension_map:
+            return extension_map[ext]
+
+        if not (self.base_dir / target_value).exists():
+            return "string"
+
+        return "string"
+
+    # ===
     def _load_config(self, path: Path) -> dict:
         if not path.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
@@ -42,7 +81,9 @@ class PasswordCracker:
 
         try:
             start = time.perf_counter()
-            with self.wordlist_path.open("r", encoding="utf-8", errors="ignore") as file:
+            with self.wordlist_path.open(
+                "r", encoding="utf-8", errors="ignore"
+            ) as file:
                 self._common_words = [line.strip() for line in file if line.strip()]
             elapsed = time.perf_counter() - start
             print(f"[+] Loaded {len(self._common_words):,} words ({elapsed:.3f}s).")
@@ -59,7 +100,9 @@ class PasswordCracker:
         if self.mangling_level <= 0:
             print("[*] Level 0: Running high-speed direct dictionary check...")
             for word in self._common_words:
-                if verify_single_password(self.target_type, self.target_value, self.base_dir, word):
+                if verify_single_password(
+                    self.target_type, self.target_value, self.base_dir, word
+                ):
                     elapsed = time.perf_counter() - start_time
                     return (
                         f"\n[!] MATCH FOUND IN DICTIONARY!\n"
@@ -71,13 +114,17 @@ class PasswordCracker:
             return None
 
         cpu_count = mp.cpu_count()
-        print(f"[*] Level {self.mangling_level}: Starting parallel mangled dictionary search across {cpu_count} CPU cores...")
+        print(
+            f"[*] Level {self.mangling_level}: Starting parallel mangled dictionary search across {cpu_count} CPU cores..."
+        )
 
         mangled_candidates = []
         for word in self._common_words:
             mangled_candidates.extend(generate_mutations(word, self.mangling_level))
         unique_candidates = list(dict.fromkeys(mangled_candidates))
-        print(f"[+] Generated {len(unique_candidates):,} total candidates after mangling.")
+        print(
+            f"[+] Generated {len(unique_candidates):,} total candidates after mangling."
+        )
 
         batch_size = 1000
         batches = [
@@ -129,10 +176,13 @@ class PasswordCracker:
         attempts = 0
         start_time = time.perf_counter()
 
-        print(f"[*] Starting parallel brute-force (length: {min_len}-{max_len}) across {cpu_count} CPU cores...")
+        print(
+            f"[*] Starting parallel brute-force (length: {min_len}-{max_len}) across {cpu_count} CPU cores..."
+        )
         batch_size = 5000
 
         for length in range(min_len, max_len + 1):
+
             def batch_generator():
                 current_batch = []
                 for tuple_guess in itertools.product(charset, repeat=length):
@@ -175,7 +225,9 @@ class PasswordCracker:
 
         valid_targets = ("string", "zip", "7z", "rar", "pdf", "office")
         if self.target_type not in valid_targets:
-            print(f"[-] Unsupported target_type '{self.target_type}'. Use: {valid_targets}")
+            print(
+                f"[-] Unsupported target_type '{self.target_type}'. Use: {valid_targets}"
+            )
             return
 
         if self.target_type != "string":
@@ -189,7 +241,9 @@ class PasswordCracker:
             print(f"[-] Invalid mode '{self.mode}'. Supported modes: {valid_modes}")
             return
 
-        print(f"=== Password Cracker Started (Target: {self.target_type} | Mode: {self.mode}) ===")
+        print(
+            f"=== Password Cracker Started (Target: {self.target_type} | Mode: {self.mode}) ==="
+        )
         start_total = time.perf_counter()
 
         if self.mode == "dictionary_only":
