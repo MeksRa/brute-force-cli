@@ -2,7 +2,11 @@ import argparse
 import multiprocessing as mp
 from pathlib import Path
 
+from rich.console import Console
+
 from brute_force_cli.cracker import PasswordCracker
+
+console = Console()
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -94,4 +98,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     mp.freeze_support()
+
+    console.rule("[bold cyan]Password Cracker Utility[/]")
+    console.print("[dim green]• MeksRa CLI BruteForce[/]\n")
+    
     main()

@@ -4,3 +4,4 @@ pypdf
 rarfile
 cryptography
 msoffcrypto-tool
+rich

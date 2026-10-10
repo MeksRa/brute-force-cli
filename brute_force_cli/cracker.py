@@ -9,6 +9,18 @@ from brute_force_cli.mangling import generate_mutations
 from brute_force_cli.verifier import verify_single_password, worker_batch_check
 
 
+from rich.console import Console
+from rich.progress import (
+    Progress,
+    BarColumn,
+    TextColumn,
+    TimeRemainingColumn,
+    SpinnerColumn,
+)
+
+console = Console()
+
+
 class PasswordCracker:
     def __init__(self, config_path: Path, base_dir: Path) -> None:
         self.base_dir = base_dir
@@ -99,12 +111,13 @@ class PasswordCracker:
                     self.target_type, self.target_value, self.base_dir, word
                 ):
                     elapsed = time.perf_counter() - start_time
-                    return (
-                        f"\n[!] MATCH FOUND IN DICTIONARY!\n"
-                        f"    Target: '{self.target_value}' ({self.target_type})\n"
-                        f"    Password: '{word}'\n"
-                        f"    Time elapsed: {elapsed:.6f}s"
-                    )
+                    console.print(
+                       f"\n[bold green]![/] [bold green]MATCH FOUND IN DICTIONARY![/]\n"
+                        f"    [gray]Target:[/] '{self.target_value}' ({self.target_type})\n"
+                        f"    [bold green]Password:[/] '{word}'\n"
+                        f"    [gray]Time elapsed:[/] {elapsed:.4f}s"
+                        )
+                    return word
             print("[-] Target password not found in dictionary search.")
             return None
 
@@ -134,14 +147,17 @@ class PasswordCracker:
                 if result:
                     pool.terminate()
                     elapsed = time.perf_counter() - start_time
-                    return (
-                        f"\n[!] MATCH FOUND VIA MANGLED DICTIONARY!\n"
-                        f"    Target: '{self.target_value}' ({self.target_type})\n"
-                        f"    Password: '{result}'\n"
-                        f"    Time elapsed: {elapsed:.2f}s"
-                    )
+                    console.print(
+                       f"\n[bold green]![/] [bold green]MATCH FOUND IN DICTIONARY![/]\n"
+                        f"    [dim]Target:[/] '{self.target_value}' ({self.target_type})\n"
+                        f"    [bold green]Password:[/] '{result}'\n"
+                        f"    [dim]Time elapsed:[/] {elapsed:.4f}s"
+                        )
 
-        print("[-] Target password not found in dictionary search.")
+                    return result
+                    
+
+        console.print("[yellow][-] Target password not found in dictionary search.[/]")
         return None
 
     def brute_force(self) -> str | None:
@@ -157,66 +173,105 @@ class PasswordCracker:
             min_len = int(self.config.get("min_length", 1))
             max_len = int(self.config.get("max_length", 5))
         except ValueError:
-            print("[-] Invalid length settings in config.json. Must be integers.")
+            console.print(
+                "[bold red][-] Invalid length settings in config.json. Must be integers.[/]"
+            )
             return None
 
         if min_len < 1 or max_len < min_len:
-            print("[-] Invalid length bounds (min_length > max_length or < 1).")
+            console.print(
+                "[bold red][-] Invalid length bounds (min_length > max_length or < 1).[/]"
+            )
             return None
 
-        # autocorrection if len word(target value) > max_len
+        # Autocorrect if length of target value exceeds max_len
         if self.target_type == "string" and len(self.target_value) > max_len:
-            print(
-                f"[*] Note: Target string length ({len(self.target_value)}) exceeds config max_length ({max_len}). Adjusting limit."
+            console.print(
+                f"[yellow][*] Note: Target string length ({len(self.target_value)}) exceeds config max_length ({max_len}). Adjusting limit.[/]"
             )
             max_len = len(self.target_value)
+
+        # Autocorrect min_len for string target
+        if self.target_type == "string":
+            min_len = max_len = len(self.target_value)
 
         cpu_count = mp.cpu_count()
         attempts = 0
         start_time = time.perf_counter()
 
-        print(
-            f"[*] Starting parallel brute-force (length: {min_len}-{max_len}) across {cpu_count} CPU cores..."
+        console.print(
+            f"[cyan][*] Starting parallel brute-force (length: {min_len}-{max_len}) across {cpu_count} CPU cores...[/]"
         )
-        batch_size = 5000
+        
+        # Use smaller batch size for heavy file targets to keep progress bar responsive
+        batch_size = 50 if self.target_type != "string" else 5000
 
         with mp.Pool(processes=cpu_count) as pool:
-            for length in range(min_len, max_len + 1):
-                print(f"[DEBUG] Preparing batches for length {length}...")
+            with Progress(
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                "[progress.percentage]{task.percentage:>3.1f}%",
+                "•",
+                SpinnerColumn(),
+                TimeRemainingColumn(),
+                console=console,
+            ) as progress:
+                
+                # Create a single task once before the loop to prevent stacking bars
+                task_id = progress.add_task("[cyan]Preparing...", total=100)
 
-                def batch_generator(current_len=length):
-                    current_batch = []
-                    for tuple_guess in itertools.product(charset, repeat=current_len):
-                        current_batch.append("".join(tuple_guess))
-                        if len(current_batch) >= batch_size:
-                            yield current_batch
-                            current_batch = []
-                    if current_batch:
-                        yield current_batch
+                for length in range(min_len, max_len + 1):
+                    total_combinations = len(charset) ** length
+                    
+                    # Update task description, total combinations, and reset progress for the new length
+                    progress.update(
+                        task_id,
+                        description=f"[cyan]Length {length}[/]",
+                        total=total_combinations,
+                        completed=0
+                    )
 
-                tasks = [
-                    (batch, self.target_type, self.target_value, self.base_dir)
-                    for batch in batch_generator()
-                ]
+                    def batch_generator(current_len=length):
+                        current_batch = []
+                        for tuple_guess in itertools.product(
+                            charset, repeat=current_len
+                        ):
+                            current_batch.append("".join(tuple_guess))
+                            if len(current_batch) >= batch_size:
+                                yield (
+                                    current_batch,
+                                    self.target_type,
+                                    self.target_value,
+                                    self.base_dir,
+                                )
+                                current_batch = []
+                        if current_batch:
+                            yield (
+                                current_batch,
+                                self.target_type,
+                                self.target_value,
+                                self.base_dir,
+                            )
 
-                print(
-                    f"[DEBUG] Length {length}: Generated {len(tasks)} batches. Sending to pool via imap_unordered..."
-                )
-
-                for result in pool.imap_unordered(worker_batch_check, tasks):
-                    attempts += batch_size
-                    if result:
-                        pool.terminate()
-                        elapsed = time.perf_counter() - start_time
-                        speed = attempts / elapsed if elapsed > 0 else 0
-                        return (
-                            f"\n[+] SUCCESS! Password cracked!\n"
-                            f"    Target: '{self.target_value}' ({self.target_type})\n"
-                            f"    Password: '{result}'\n"
-                            f"    Attempts evaluated: ~{attempts:,}\n"
-                            f"    Time elapsed: {elapsed:.2f}s\n"
-                            f"    Speed: {speed:,.0f} attempts/sec"
-                        )
+                    for result in pool.imap_unordered(
+                        worker_batch_check, batch_generator(), chunksize=2
+                    ):
+                        attempts += batch_size
+                        progress.update(task_id, advance=batch_size)
+                        if result:
+                            progress.update(task_id, completed=total_combinations)
+                            pool.terminate()
+                            elapsed = time.perf_counter() - start_time
+                            speed = attempts / elapsed if elapsed > 0 else 0
+                            console.print(
+                                f"\n[bold green][+] SUCCESS! Password cracked![/]\n"
+                                f"    [gray]Target:[/] '{self.target_value}' ({self.target_type})\n"
+                                f"    [bold green]Password:[/] '{result}'\n"
+                                f"    [gray]Attempts evaluated:[/] ~{attempts:,}\n"
+                                f"    [gray]Time elapsed:[/] {elapsed:.2f}s\n"
+                                f"    [gray]Speed:[/] {speed:,.0f} attempts/sec"
+                            )
+                            return result
 
         elapsed = time.perf_counter() - start_time
         print(f"[-] Password not found after search ({elapsed:.2f}s).")
@@ -273,4 +328,4 @@ class PasswordCracker:
                     print(result_bf)
 
         total_elapsed = time.perf_counter() - start_total
-        print(f"\n[=] Total execution time: {total_elapsed:.4f}s")
+        console.print(f"[cyan][=] Total execution time: {total_elapsed:.4f}s[/]")
