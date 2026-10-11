@@ -332,19 +332,15 @@ class PasswordCracker:
         )
         start_total = time.perf_counter()
 
+        result = None
         if self.mode == "dictionary_only":
-            if result := self.check_dictionary():
-                print(f"_password:{result}")
+            result = self.check_dictionary()
         elif self.mode == "bruteforce_only":
-            if result := self.brute_force():
-                print(f"_password:{result}")
+            result = self.brute_force()
         elif self.mode == "hybrid":
             result = self.check_dictionary()
-            if result:
-                print(f"_password:{result}")
-            else:
-                if result_bf := self.brute_force():
-                    print(f"_password:{result_bf}")
+            if not result:
+                result = self.brute_force()
 
         total_elapsed = time.perf_counter() - start_total
         console.print(f"\n[cyan][=] Total execution time: {total_elapsed:.4f}s[/]")
