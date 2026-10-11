@@ -2,6 +2,31 @@
   <img src="assets/Github-banner.png" alt="dev-lab banner" width="100%" style="max-width: 800px;">
 </p>
 
+---
+
+## 📑 Table of Contents
+
+- [CLI BruteForce](#cli-bruteforce)
+  - [🎯 Project Goal](#-project-goal)
+  - [📸 Screenshots](#-screenshots)
+  - [Features](#features)
+  - [Supported Formats](#supported-formats)
+  - [Installation](#installation)
+  - [Attack Modes](#attack-modes)
+  - [Password Mangling Levels (`--mangling`)](#password-mangling-levels---mangling)
+    - [Explicit Target Type (`-t`, `--type`)](#explicit-target-type--t---type)
+  - [💡 Smart Features \& File Structure](#-smart-features--file-structure)
+    - [📂 Automatic Output Generation](#-automatic-output-generation)
+    - [⚡ Automatic Path Resolution (`data/` folder)](#-automatic-path-resolution-data-folder)
+  - [Examples](#examples)
+    - [1. String Target (Auto-detect length)](#1-string-target-auto-detect-length)
+    - [2. File Target (Path)](#2-file-target-path)
+  - [Configuration \& Defaults](#configuration--defaults)
+  - [CLI Options Reference](#cli-options-reference)
+  - [License](#license)
+
+---
+
 # CLI BruteForce
 
 A fast, modular, and high-performance CLI password cracking and auditing utility built in Python. Designed with multi-processing support, lazy dependency loading, and cross-platform compatibility.
@@ -22,17 +47,32 @@ clean, tested, maintainable code rather than raw cracking throughput.
 
 ---
 
-## 📸 Demo & Screenshots
+## 📸 Screenshots
 
-> *(wip)*
+<details>
+<summary><b>Click to expand screenshots gallery</b></summary>
+<br>
 
 <p align="center">
-  <img src="assets/demo-screenshot.png" alt="Tool in action" width="100%" style="max-width: 750px;">
+  <img src="assets/Screenshot 2026-10-11 155641.png" alt="Pure Brute-Force 10 Digits" width="100%" style="max-width: 750px;">
+</p>
+<p align="center">
+  <img src="assets/Screenshot 2026-10-11 161112.png" alt="Mangled Dictionary Search" width="100%" style="max-width: 750px;">
+</p>
+<p align="center">
+  <img src="assets/Screenshot 2026-10-11 161906.png" alt="Full Charset Brute-Force" width="100%" style="max-width: 750px;">
+</p>
+<p align="center">
+  <img src="assets/Screenshot 2026-10-11 162158.png" alt="Complex Charset Speed Test" width="100%" style="max-width: 750px;">
+</p>
+<p align="center">
+  <img src="assets/Screenshot 2026-10-11 164634.png" alt="Cracking Encrypted Archives" width="100%" style="max-width: 750px;">
+</p>
+<p align="center">
+  <img src="assets/Screenshot 2026-10-11 165029.png" alt="python main.py -h" width="100%" style="max-width: 750px;">
 </p>
 
-<!-- Optional YouTube video placeholder:
-[![Watch the video](https://img.shields.io/badge/YouTube-Watch%20Demo-red?style=for-the-badge&logo=youtube)](https://youtu.be/YOUR_VIDEO_ID)
--->
+</details>
 
 ---
 
@@ -122,6 +162,17 @@ However, if you want to override auto-detection or enforce a specific handler, y
 ```bash
 python main.py 1.pdf -t string -d -s -l
 ```
+
+---
+
+## 💡 Smart Features & File Structure
+
+### 📂 Automatic Output Generation
+You don't need to manually create folders to save your results. The `output/` directory is **automatically created** upon successfully cracking the first password, storing your results safely without cluttering the project root.
+
+### ⚡ Automatic Path Resolution (`data/` folder)
+The tool is designed for maximum convenience:
+* If you place your **wordlists** and **attack targets** directly inside the `data/` folder, you can reference them by name instead of typing the absolute path, the CLI will locate them automatically.
 
 ---
 
