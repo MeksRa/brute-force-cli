@@ -13,7 +13,7 @@ console = Console()
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="MeksRa CLI BruteForce")
+    parser = argparse.ArgumentParser(description="CLI BruteForce")
 
 
 
@@ -151,7 +151,6 @@ def main() -> None:
 if __name__ == "__main__":
     mp.freeze_support()
 
-    console.rule("[bold cyan]MeksRa CLI BruteForce[/]")
-    console.print("[dim green]github.com/meksra[/]\n")
+    console.rule("[bold cyan]CLI BruteForce[/]")
     
     main()
