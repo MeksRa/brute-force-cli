@@ -4,32 +4,29 @@
 
 ---
 
-## 📑 Table of Contents
-
-- [CLI BruteForce](#cli-bruteforce)
-  - [🎯 Project Goal](#-project-goal)
-  - [📸 Screenshots](#-screenshots)
-  - [Features](#features)
-  - [Supported Formats](#supported-formats)
-  - [Installation](#installation)
-  - [Attack Modes](#attack-modes)
-  - [Password Mangling Levels (`--mangling`)](#password-mangling-levels---mangling)
-    - [Explicit Target Type (`-t`, `--type`)](#explicit-target-type--t---type)
-  - [💡 Smart Features \& File Structure](#-smart-features--file-structure)
-    - [📂 Automatic Output Generation](#-automatic-output-generation)
-    - [⚡ Automatic Path Resolution (`data/` folder)](#-automatic-path-resolution-data-folder)
-  - [Examples](#examples)
-    - [1. String Target (Auto-detect length)](#1-string-target-auto-detect-length)
-    - [2. File Target (Path)](#2-file-target-path)
-  - [Configuration \& Defaults](#configuration--defaults)
-  - [CLI Options Reference](#cli-options-reference)
-  - [License](#license)
-
----
-
 # CLI BruteForce
 
 A fast, modular, and high-performance CLI password cracking and auditing utility built in Python. Designed with multi-processing support, lazy dependency loading, and cross-platform compatibility.
+
+---
+
+## 📑 Table of Contents
+
+- [🎯 Project Goal](#-project-goal)
+- [📸 Screenshots](#-screenshots)
+- [Features](#features)
+- [Supported Formats](#supported-formats)
+- [Installation](#installation)
+- [Options](#options)
+  - [Attack Modes](#attack-modes)
+  - [Password Mangling Levels (`--mangling`)](#password-mangling-levels---mangling)
+  - [Explicit Target Type (`-t`, `--type`)](#explicit-target-type--t---type)
+  - [Examples](#examples)
+    - [1. String Target (Auto-detect length)](#1-string-target-auto-detect-length)
+    - [2. File Target (Path)](#2-file-target-path)
+- [Configuration \& Defaults](#configuration--defaults)
+- [CLI Options Reference](#cli-options-reference)
+- [License](#license)
 
 ---
 
@@ -83,6 +80,11 @@ clean, tested, maintainable code rather than raw cracking throughput.
 - **Cross-Platform**: Tested and working on Windows, Linux, and macOS.
 - **Smart Binary Resolution**: Automatically detects and caches system `unrar` binaries for efficient RAR archive handling.
 - **Flexible Attack Modes**: Supports brute-force enumeration, dictionary-based attacks, and rule-based password mangling levels.
+- **Automatic Output Generation**:
+You don't need to manually create folders to save your results. The `output/` directory is **automatically created** upon successfully cracking the first password and the result is appended to `output/passwords.txt`, storing it safely without cluttering the project root.
+
+- **Automatic Path Resolution (`data/` folder):**
+The tool is designed for maximum convenience. If you place your **wordlists** and **attack targets** directly inside the `data/` folder, you can reference them by name instead of typing the full path — the CLI will locate them there automatically.
 
 ---
 
@@ -128,7 +130,11 @@ clean, tested, maintainable code rather than raw cracking throughput.
 
 ---
 
-## Attack Modes
+## Options
+
+---
+
+### Attack Modes
 
 The tool supports 3 different attack modes (`-m`, `--mode`):
 
@@ -138,7 +144,7 @@ The tool supports 3 different attack modes (`-m`, `--mode`):
 
 ---
 
-## Password Mangling Levels (`--mangling`)
+### Password Mangling Levels (`--mangling`)
 
 Mangling rules mutate words from your wordlist to generate smart variations (useful for dictionary and hybrid attacks). Available levels:
 
@@ -155,7 +161,7 @@ Basic case variations (as-is, LOWERCASE, UPPERCASE, Capitalized) for levels 1-5.
 
 ### Explicit Target Type (`-t`, `--type`)
 
-By default, the tool automatically detects the target type based on the file extension (or defaults to `string` if no extension is present). 
+By default, the tool automatically detects the target type based on the file extension (or defaults to `string` if no extension is present).
 
 However, if you want to override auto-detection or enforce a specific handler, you can explicitly set the type using the `-t` or `--type` flag:
 
@@ -165,18 +171,7 @@ python main.py 1.pdf -t string -d -s -l
 
 ---
 
-## 💡 Smart Features & File Structure
-
-### 📂 Automatic Output Generation
-You don't need to manually create folders to save your results. The `output/` directory is **automatically created** upon successfully cracking the first password, storing your results safely without cluttering the project root.
-
-### ⚡ Automatic Path Resolution (`data/` folder)
-The tool is designed for maximum convenience:
-* If you place your **wordlists** and **attack targets** directly inside the `data/` folder, you can reference them by name instead of typing the absolute path, the CLI will locate them automatically.
-
----
-
-## Examples
+### Examples
 
 Run the tool via `main.py` by passing your target and desired options:
 
@@ -186,7 +181,7 @@ python main.py <target> [flags]
 
 > 💡 **Need all available flags?** Check the [CLI Options Reference](#cli-options-reference) below or run `python main.py --help`.
 
-### 1. String Target (Auto-detect length)
+#### 1. String Target (Auto-detect length)
 
 | Command | Description |
 | :--- | :--- |
@@ -197,7 +192,7 @@ python main.py <target> [flags]
 | `python main.py secret -l -m bruteforce_only` | Lowercase letters, brute-force mode |
 | `python main.py secret -l -d -m dictionary_only` | Lowercase letters, digits, dictionary mode |
 
-### 2. File Target (Path)
+#### 2. File Target (Path)
 
 | Command | Description |
 | :--- | :--- |
