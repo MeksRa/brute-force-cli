@@ -141,11 +141,11 @@ def main() -> None:
             cracker.run()
         except KeyboardInterrupt:
             subprocess.run(['cls' if os.name == 'nt' else 'clear'], check=False, shell=True)
-            console.print("\n[yellow][!] Operation interrupted by user. Exiting...[/]")
+            console.print("\n[#008B8B][!] [yellow]Operation interrupted by user. Exiting...[/]")
             sys.exit(0)
 
     except Exception as e:  # noqa: BLE001
-        print(f"[-] Fatal Error: {e}")
+        console.print(f"[bold red][x] Fatal Error:[/] [red]{e}[/]")
 
 
 if __name__ == "__main__":
