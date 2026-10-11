@@ -2,9 +2,23 @@
   <img src="assets/Github-banner.png" alt="dev-lab banner" width="100%" style="max-width: 800px;">
 </p>
 
-# MeksRa CLI BruteForce
+# CLI BruteForce
 
 A fast, modular, and high-performance CLI password cracking and auditing utility built in Python. Designed with multi-processing support, lazy dependency loading, and cross-platform compatibility.
+
+---
+
+## 🎯 Project Goal
+
+This project was built as a learning exercise to practice real-world
+Python patterns: CLI design with argparse, parallel processing with
+multiprocessing, modular architecture, lazy dependency loading, and
+automated testing with pytest, etc.
+
+It is not intended to compete with dedicated, GPU-accelerated tools like
+Hashcat, John the Ripper, or Aircrack-ng — those solve password recovery
+at a scale and speed this project doesn't aim for. The focus here is on
+clean, tested, maintainable code rather than raw cracking throughput.
 
 ---
 
@@ -145,7 +159,7 @@ python main.py <target> [flags]
 
 ## Configuration & Defaults
 
-Instead of passing multiple flags every time, you can use a JSON configuration file.
+Instead of passing multiple flags every time, you can directly edit a JSON configuration file.
 
 The tool automatically loads its configuration by default. Here are the **default settings** used under the hood:
 
