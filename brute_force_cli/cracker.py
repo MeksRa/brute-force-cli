@@ -153,6 +153,7 @@ class PasswordCracker:
                 if result:
                     pool.terminate()
                     elapsed = time.perf_counter() - start_time
+                    self.save_successful_result(self.target_value, result)
                     console.print(
                         f"\n[bold #20B2AA][✓] [bold green]MATCH FOUND IN DICTIONARY![/]\n"
                         f"    [gray]Target:[/] '{self.target_value}' ({self.target_type})\n"
