@@ -18,7 +18,7 @@ from rich.progress import (
 )
 
 from brute_force_cli.mangling import generate_mutations
-from brute_force_cli.verifier import verify_single_password, worker_batch_check
+from brute_force_cli.verifier import worker_batch_check
 
 console = Console()
 
@@ -88,7 +88,7 @@ class PasswordCracker:
 
     def _load_wordlist(self) -> None:
         if not self.wordlist_path.exists():
-            print(f"[-] Wordlist file not found: {self.wordlist_path}")
+            console.print(f"[bold red][x] Error:[/] [red]Wordlist file not found: {self.wordlist_path}[/]")
             return
 
         try:
@@ -98,9 +98,10 @@ class PasswordCracker:
             ) as file:
                 self._common_words = [line.strip() for line in file if line.strip()]
             elapsed = time.perf_counter() - start
-            print(f"[+] Loaded {len(self._common_words):,} words ({elapsed:.3f}s).")
+            console.print(f"[#20B2AA][✓] [green]Loaded {len(self._common_words):,} words ({elapsed:.3f}s).[/]")
+            console.print(f"[#008B8B][i] [green]Wordlist:[/] [dim cyan]{self.wordlist_path}[/]")
         except Exception as e:  # noqa: BLE001
-            print(f"[-] Failed to load dictionary: {e}")
+            console.print(f"[bold red][x] Error:[/] [red]Failed to load dictionary: {e}[/]")
 
     def _build_charset(self) -> str:
         """Builds the active charset from the (CLI-overridable) instance flags.
@@ -122,26 +123,19 @@ class PasswordCracker:
 
     def check_dictionary(self) -> str | None:
         if not self._common_words:
-            print("[-] Dictionary is empty or missing.")
+            console.print("[bold red][x] Error:[/] [red]Dictionary is empty or missing.[/]")
             return None
 
         start_time = time.perf_counter()
 
         if self.mangling_level <= 0:
             candidates = self._common_words
-            print(
-                f"[*] Level 0: Running parallel direct dictionary check across "
-                f"{mp.cpu_count()} CPU cores..."
-            )
+            console.print(f"[#20B2AA][>] [cyan]Level 0: Running parallel direct dictionary check across {mp.cpu_count()} CPU cores...[/]")
         else:
             cpu_count = mp.cpu_count()
-            print(
-                f"[*] Level {self.mangling_level}: Starting parallel mangled dictionary "
-                f"search across {cpu_count} CPU cores..."
-            )
+            console.print(f"[#20B2AA][>] [cyan]Level {self.mangling_level}: Starting parallel mangled dictionary search across {cpu_count} CPU cores...[/]")
             candidates = generate_mutations(self._common_words, self.mangling_level)
-            print(f"[+] Generated {len(candidates):,} total candidates after mangling.")
-
+            console.print(f"[#20B2AA][i] [green]Generated {len(candidates):,} total candidates after mangling.[/]")
         cpu_count = mp.cpu_count()
         batch_size = 1000
         batches = [
@@ -160,14 +154,14 @@ class PasswordCracker:
                     pool.terminate()
                     elapsed = time.perf_counter() - start_time
                     console.print(
-                        f"\n[bold green]![/] [bold green]MATCH FOUND IN DICTIONARY![/]\n"
+                        f"\n[bold #20B2AA][✓] [bold green]MATCH FOUND IN DICTIONARY![/]\n"
                         f"    [gray]Target:[/] '{self.target_value}' ({self.target_type})\n"
                         f"    [bold green]Password:[/] '{result}'\n"
                         f"    [gray]Time elapsed:[/] {elapsed:.4f}s"
                     )
                     return result
 
-        console.print("[yellow][-] Target password not found in dictionary search.[/]")
+        console.print("[#008B8B][i] [yellow]Target password not found in dictionary search.[/]")
         return None
 
     def brute_force(self) -> str | None:
@@ -175,8 +169,7 @@ class PasswordCracker:
 
         if not charset:
             console.print(
-                "[bold red][-] Error: Charset is empty! Enable at least one "
-                "character set in config.json.[/]"
+                "[bold red][x] Error:[/] [red]Charset is empty! Enable at least one character set in config.json.[/]"
             )
             return None
 
@@ -185,15 +178,14 @@ class PasswordCracker:
 
         if min_len < 1 or max_len < min_len:
             console.print(
-                "[bold red][-] Invalid length bounds (min_length > max_length or < 1).[/]"
+                "[bold red][x] Error:[/] [red]Invalid length bounds (min_length > max_length or < 1).[/]"
             )
             return None
 
         # Autocorrect if length of target value exceeds max_len
         if self.target_type == "string" and len(self.target_value) > max_len:
             console.print(
-                f"[yellow][*] Note: Target string length ({len(self.target_value)}) "
-                f"exceeds config max_length ({max_len}). Adjusting limit.[/]"
+                f"[#008B8B][i] [yellow]Note: Target string length ({len(self.target_value)}) exceeds config max_length ({max_len}). Adjusting limit.[/]"
             )
             max_len = len(self.target_value)
 
@@ -207,18 +199,17 @@ class PasswordCracker:
 
         # Display current configuration summary for transparency
         console.print(
-            f"[cyan][*] Configuration summary:[/]\n"
-            f"    [gray]• Lowercase letters (use_lowercase):[/] {self.use_lowercase}\n"
-            f"    [gray]• Uppercase letters (use_uppercase):[/] {self.use_uppercase}\n"
-            f"    [gray]• Digits (use_digits):[/] {self.use_digits}\n"
-            f"    [gray]• Symbols (use_symbols):[/] {self.use_symbols}\n"
-            f"    [gray]• Mangling level (mangling_level):[/] {self.mangling_level}\n"
-            f"    [gray]• Length range:[/] {min_len} - {max_len}\n"
-            f"    [gray]• Total charset size:[/] {len(charset)} chars"
+            f"[#008B8B][i] [cyan]Configuration summary:[/]\n"
+            f"    [gray]• Lowercase letters (use_lowercase):[/] {self._format_bool(self.use_lowercase)}\n"
+            f"    [gray]• Uppercase letters (use_uppercase):[/] {self._format_bool(self.use_uppercase)}\n"
+            f"    [gray]• Digits (use_digits):[/] {self._format_bool(self.use_digits)}\n"
+            f"    [gray]• Symbols (use_symbols):[/] {self._format_bool(self.use_symbols)}\n"
+            f"    [gray]• Mangling level (mangling_level):[/] [#FFB86C]{self.mangling_level}[/]\n"
+            f"    [gray]• Length range:[/] [#FFB86C]{min_len} - {max_len}[/]\n"
+            f"    [gray]• Total charset size:[/] [#FFB86C]{len(charset)}[/]"
         )
         console.print(
-            f"[cyan][*] Starting parallel brute-force (length: {min_len}-{max_len}) "
-            f"across {cpu_count} CPU cores...[/]"
+            f"[#20B2AA][>] [cyan]Starting parallel brute-force (length: {min_len}-{max_len}) across {cpu_count} CPU cores...[/]"
         )
 
         # Adaptive batch size: smaller for heavy files to keep UI responsive, larger for strings to maximize throughput
@@ -283,7 +274,7 @@ class PasswordCracker:
                         speed = attempts / elapsed if elapsed > 0 else 0
                         self.save_successful_result(self.target_value, result)
                         console.print(
-                            f"\n[bold green][+] SUCCESS! Password cracked![/]\n"
+                            f"\n[bold #20B2AA][✓] [bold green]SUCCESS! Password cracked![/]\n"
                             f"    [gray]Target:[/] '{self.target_value}' ({self.target_type})\n"
                             f"    [bold green]Password:[/] '{result}'\n"
                             f"    [gray]Attempts evaluated:[/] ~{attempts:,}\n"
@@ -293,19 +284,17 @@ class PasswordCracker:
                         return result
 
         elapsed = time.perf_counter() - start_time
-        print(f"[-] Password not found after search ({elapsed:.2f}s).")
+        console.print(f"[#008B8B][i] [yellow]Password not found after search ({elapsed:.2f}s).[/]")
         return None
 
     def run(self) -> None:
         if not self.target_value:
-            print("[-] Error: 'target_value' in config.json is empty.")
+            console.print("[bold red][x] Error:[/] [red]'target_value' in config.json is empty.[/]")
             return
 
         valid_targets = ("string", "zip", "7z", "rar", "pdf", "office")
         if self.target_type not in valid_targets:
-            print(
-                f"[-] Unsupported target_type '{self.target_type}'. Use: {valid_targets}"
-            )
+            console.print(f"[bold red][x] Error:[/] [red]Unsupported target_type '{self.target_type}'. Use: {valid_targets}[/]")
             return
 
         if self.target_type != "string":
@@ -317,19 +306,18 @@ class PasswordCracker:
                     target_path = fallback_path
 
             if not target_path.exists():
-                print(f"[-] Target file not found: {self.target_value}")
+                console.print(f"[bold red][x] Error:[/] [red]Target file not found: {self.target_value}[/]")
                 return
 
             self.target_value = str(target_path.resolve())
 
         valid_modes = ("dictionary_only", "bruteforce_only", "hybrid")
         if self.mode not in valid_modes:
-            print(f"[-] Invalid mode '{self.mode}'. Supported modes: {valid_modes}")
+            console.print(f"[bold red][x] Error:[/] [red]Invalid mode '{self.mode}'. Supported modes: {valid_modes}[/]")
             return
 
-        print(
-            f"=== Password Cracker Started (Target: {self.target_type} | Mode: {self.mode}) ==="
-        )
+
+        console.print(f"[#008B8B]===[/] [bold #20B2AA]Password Cracker Started[/] [#008B8B](Target: {self.target_type} | Mode: {self.mode}) ===[/]")
         start_total = time.perf_counter()
 
         result = None
@@ -343,7 +331,8 @@ class PasswordCracker:
                 result = self.brute_force()
 
         total_elapsed = time.perf_counter() - start_total
-        console.print(f"\n[cyan][=] Total execution time: {total_elapsed:.4f}s[/]")
+        console.print(f"\n[#20B2AA][i] [cyan]Total execution time: {total_elapsed:.4f}s[/]")
+        console.rule()
 
     def save_successful_result(self, target_name, password):
         """Appends a found password to base_dir/output/passwords.txt.
@@ -368,3 +357,6 @@ class PasswordCracker:
             # Best-effort on platforms/filesystems that don't support chmod
             # (e.g. some Windows/FAT setups); not worth failing the run over.
             pass
+
+    def _format_bool(self, val):
+        return "[bold green]True[/]" if val else "[dim red]False[/]"
